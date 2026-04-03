@@ -1,3 +1,5 @@
+import "./globals.css";
+
 export const metadata = {
   title: "Vision & Goals",
   description: "Track your vision, goals, and milestones — watch yourself grow",
@@ -12,9 +14,7 @@ export default function RootLayout({ children }) {
           rel="stylesheet"
         />
       </head>
-      <body style={{ margin: 0, padding: 0, fontFamily: "Inter, sans-serif" }}>
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
