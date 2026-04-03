@@ -1,304 +1,359 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+const GOALS_KEY = "vision_goals_v2";
+const BOARD_KEY = "vision_board_v2";
 
 const starterGoals = [
   {
     id: 1,
-    title: "Launch personal portfolio v2",
+    title: "Build a meaningful product people love",
     category: "Career",
-    dueDate: "2026-05-15",
-    priority: "High",
-    progress: 70,
+    dueDate: "2026-08-15",
+    progress: 55,
     done: false,
   },
   {
     id: 2,
-    title: "Run 10k in under 52 minutes",
+    title: "Achieve elite health consistency",
     category: "Health",
-    dueDate: "2026-06-30",
-    priority: "Medium",
-    progress: 45,
+    dueDate: "2026-07-01",
+    progress: 40,
     done: false,
   },
   {
     id: 3,
-    title: "Read 12 books this year",
-    category: "Learning",
-    dueDate: "2026-12-20",
-    priority: "Low",
-    progress: 33,
+    title: "Design a calm dream home aesthetic",
+    category: "Lifestyle",
+    dueDate: "2026-11-30",
+    progress: 20,
     done: false,
   },
 ];
 
-const categoryColors = {
-  Career: "#7C3AED",
-  Health: "#059669",
-  Learning: "#0EA5E9",
-  Finance: "#F59E0B",
-  Personal: "#F43F5E",
-};
+const starterBoard = [
+  {
+    id: 1,
+    title: "Dream workspace",
+    note: "Creative, minimal, and full of light",
+    image:
+      "https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=1200&q=80",
+    theme: "Career",
+  },
+  {
+    id: 2,
+    title: "Strong body, clear mind",
+    note: "Daily movement and recovery",
+    image:
+      "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&w=1200&q=80",
+    theme: "Health",
+  },
+  {
+    id: 3,
+    title: "Travel and wonder",
+    note: "One soul-filling trip each quarter",
+    image:
+      "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1200&q=80",
+    theme: "Lifestyle",
+  },
+];
 
-const priorityBoost = {
-  High: 1.4,
-  Medium: 1.15,
-  Low: 1,
-};
-
-function getDaysLeft(dueDate) {
-  const now = new Date();
-  const due = new Date(dueDate);
-  const diff = due.setHours(0, 0, 0, 0) - now.setHours(0, 0, 0, 0);
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
-}
-
-function formatDate(dateString) {
-  return new Date(dateString).toLocaleDateString(undefined, {
+function formatDate(dateValue) {
+  return new Date(dateValue).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
     year: "numeric",
   });
 }
 
-function ScoreRing({ score }) {
-  const clamped = Math.max(0, Math.min(100, score));
-  const angle = (clamped / 100) * 360;
+function readLocalStorage(key, fallback) {
+  if (typeof window === "undefined") return fallback;
+  const raw = window.localStorage.getItem(key);
+  if (!raw) return fallback;
 
-  return (
-    <div className="score-ring" style={{ background: `conic-gradient(#8B5CF6 ${angle}deg, #E2E8F0 ${angle}deg)` }}>
-      <div className="score-ring__inner">
-        <strong>{clamped}%</strong>
-        <span>Focus Score</span>
-      </div>
-    </div>
-  );
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
 }
 
 export default function VisionGoalsApp() {
+  const [view, setView] = useState("board");
+
   const [goals, setGoals] = useState(starterGoals);
-  const [form, setForm] = useState({
+  const [boardItems, setBoardItems] = useState(starterBoard);
+
+  const [goalDraft, setGoalDraft] = useState({
     title: "",
     category: "Career",
     dueDate: "",
-    priority: "Medium",
   });
-  const [dailyIntent, setDailyIntent] = useState("Finish one high-impact task before noon.");
 
-  const completedCount = useMemo(() => goals.filter((goal) => goal.done).length, [goals]);
-  const completionRate = goals.length ? Math.round((completedCount / goals.length) * 100) : 0;
+  const [boardDraft, setBoardDraft] = useState({
+    title: "",
+    note: "",
+    image: "",
+    theme: "Career",
+  });
 
-  const visionScore = useMemo(() => {
-    if (!goals.length) return 0;
-    const weightedProgress = goals.reduce((sum, goal) => {
-      const adjusted = (goal.done ? 100 : goal.progress) * priorityBoost[goal.priority];
-      return sum + adjusted;
-    }, 0);
-    const maxScore = goals.reduce((sum, goal) => sum + 100 * priorityBoost[goal.priority], 0);
-    return Math.round((weightedProgress / maxScore) * 100);
+  useEffect(() => {
+    setGoals(readLocalStorage(GOALS_KEY, starterGoals));
+    setBoardItems(readLocalStorage(BOARD_KEY, starterBoard));
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(GOALS_KEY, JSON.stringify(goals));
   }, [goals]);
 
-  const upcoming = useMemo(
-    () =>
-      [...goals]
-        .filter((goal) => !goal.done)
-        .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
-        .slice(0, 3),
-    [goals]
+  useEffect(() => {
+    window.localStorage.setItem(BOARD_KEY, JSON.stringify(boardItems));
+  }, [boardItems]);
+
+  const completed = useMemo(() => goals.filter((goal) => goal.done).length, [goals]);
+  const momentum = goals.length ? Math.round((completed / goals.length) * 100) : 0;
+
+  const boardThemes = useMemo(
+    () => [...new Set(boardItems.map((item) => item.theme))],
+    [boardItems]
   );
 
   const addGoal = () => {
-    if (!form.title.trim() || !form.dueDate) return;
+    if (!goalDraft.title.trim() || !goalDraft.dueDate) return;
 
-    const newGoal = {
-      id: Date.now(),
-      title: form.title.trim(),
-      category: form.category,
-      dueDate: form.dueDate,
-      priority: form.priority,
-      progress: 0,
-      done: false,
-    };
+    setGoals((current) => [
+      ...current,
+      {
+        id: Date.now(),
+        title: goalDraft.title.trim(),
+        category: goalDraft.category,
+        dueDate: goalDraft.dueDate,
+        progress: 0,
+        done: false,
+      },
+    ]);
 
-    setGoals((current) => [...current, newGoal]);
-    setForm((current) => ({ ...current, title: "", dueDate: "", priority: "Medium" }));
+    setGoalDraft((current) => ({ ...current, title: "", dueDate: "" }));
   };
 
-  const toggleComplete = (id) => {
+  const toggleGoal = (id) => {
     setGoals((current) =>
       current.map((goal) =>
-        goal.id === id
-          ? { ...goal, done: !goal.done, progress: goal.done ? Math.max(0, goal.progress - 20) : 100 }
-          : goal
+        goal.id === id ? { ...goal, done: !goal.done, progress: goal.done ? goal.progress : 100 } : goal
       )
     );
   };
 
-  const updateProgress = (id, direction) => {
+  const adjustGoal = (id, delta) => {
     setGoals((current) =>
       current.map((goal) => {
         if (goal.id !== id || goal.done) return goal;
-        const delta = direction === "up" ? 10 : -10;
-        return { ...goal, progress: Math.max(0, Math.min(100, goal.progress + delta)) };
+        const next = Math.max(0, Math.min(100, goal.progress + delta));
+        return { ...goal, progress: next };
       })
     );
   };
 
-  return (
-    <main className="app-shell">
-      <div className="aurora aurora--one" />
-      <div className="aurora aurora--two" />
+  const addBoardCard = () => {
+    if (!boardDraft.title.trim() || !boardDraft.image.trim()) return;
 
-      <section className="hero panel">
+    setBoardItems((current) => [
+      {
+        id: Date.now(),
+        title: boardDraft.title.trim(),
+        note: boardDraft.note.trim(),
+        image: boardDraft.image.trim(),
+        theme: boardDraft.theme,
+      },
+      ...current,
+    ]);
+
+    setBoardDraft((current) => ({ ...current, title: "", note: "", image: "" }));
+  };
+
+  const uploadImageFile = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === "string") {
+        setBoardDraft((current) => ({ ...current, image: result }));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const deleteCard = (id) => {
+    setBoardItems((current) => current.filter((item) => item.id !== id));
+  };
+
+  return (
+    <main className="vb-shell">
+      <section className="vb-hero">
         <div>
-          <p className="eyebrow">VisionOS Dashboard</p>
-          <h1>Design your future with clarity, rhythm, and momentum.</h1>
-          <p className="subtitle">
-            Translate your long-term vision into actionable milestones and track momentum with a premium goal cockpit.
+          <p className="vb-kicker">Vision Board Studio</p>
+          <h1>Build a visual life operating system that grows with you.</h1>
+          <p>
+            Curate inspiring images, tie them to meaningful goals, and track momentum in one beautifully organized space.
           </p>
-          <div className="hero-badges">
-            <span>{goals.length} active goals</span>
-            <span>{completedCount} achieved</span>
-            <span>{completionRate}% completion</span>
+          <div className="vb-metrics">
+            <span>{boardItems.length} board cards</span>
+            <span>{goals.length} goals</span>
+            <span>{momentum}% momentum</span>
           </div>
         </div>
-        <ScoreRing score={visionScore} />
       </section>
 
-      <section className="grid">
-        <article className="panel goals-panel">
-          <div className="panel-head">
-            <h2>Goal Matrix</h2>
-            <p>Prioritize what compounds your growth.</p>
-          </div>
+      <nav className="vb-tabs">
+        <button className={view === "board" ? "active" : ""} onClick={() => setView("board")} type="button">
+          Vision Board
+        </button>
+        <button className={view === "goals" ? "active" : ""} onClick={() => setView("goals")} type="button">
+          Goal Planner
+        </button>
+      </nav>
 
-          <ul className="goal-list">
-            {goals.map((goal) => (
-              <li key={goal.id} className={`goal-item ${goal.done ? "is-complete" : ""}`}>
-                <div className="goal-main">
-                  <div className="goal-title-row">
-                    <button
-                      className={`check ${goal.done ? "on" : ""}`}
-                      onClick={() => toggleComplete(goal.id)}
-                      type="button"
-                      aria-label="Toggle completed"
-                    >
+      {view === "board" ? (
+        <section className="vb-layout">
+          <aside className="vb-panel vb-form-panel">
+            <h2>Add Vision Card</h2>
+            <p>Add image URL or upload a file from your device.</p>
+
+            <input
+              placeholder="Card title"
+              value={boardDraft.title}
+              onChange={(event) => setBoardDraft((current) => ({ ...current, title: event.target.value }))}
+            />
+            <textarea
+              placeholder="Why this matters to me"
+              rows={3}
+              value={boardDraft.note}
+              onChange={(event) => setBoardDraft((current) => ({ ...current, note: event.target.value }))}
+            />
+            <input
+              placeholder="Paste image URL"
+              value={boardDraft.image}
+              onChange={(event) => setBoardDraft((current) => ({ ...current, image: event.target.value }))}
+            />
+
+            <label className="upload-label" htmlFor="vision-upload">
+              Upload image file
+            </label>
+            <input id="vision-upload" type="file" accept="image/*" onChange={uploadImageFile} />
+
+            <select
+              value={boardDraft.theme}
+              onChange={(event) => setBoardDraft((current) => ({ ...current, theme: event.target.value }))}
+            >
+              <option>Career</option>
+              <option>Health</option>
+              <option>Lifestyle</option>
+              <option>Finance</option>
+              <option>Travel</option>
+            </select>
+
+            <button className="primary" onClick={addBoardCard} type="button">
+              Add to Vision Board
+            </button>
+
+            {boardDraft.image ? <img className="preview" src={boardDraft.image} alt="Vision preview" /> : null}
+          </aside>
+
+          <div className="vb-board-wrap">
+            <div className="vb-themes">
+              {boardThemes.map((theme) => (
+                <span key={theme}>{theme}</span>
+              ))}
+            </div>
+
+            <div className="vb-board">
+              {boardItems.map((item) => (
+                <article className="card" key={item.id}>
+                  <img src={item.image} alt={item.title} />
+                  <div className="card-content">
+                    <span className="theme">{item.theme}</span>
+                    <h3>{item.title}</h3>
+                    <p>{item.note || "No note yet."}</p>
+                    <button onClick={() => deleteCard(item.id)} type="button">
+                      Remove
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : (
+        <section className="vb-layout">
+          <aside className="vb-panel vb-form-panel">
+            <h2>Create Goal</h2>
+            <p>Turn your vision cards into measurable outcomes.</p>
+
+            <input
+              placeholder="Goal title"
+              value={goalDraft.title}
+              onChange={(event) => setGoalDraft((current) => ({ ...current, title: event.target.value }))}
+            />
+            <input
+              type="date"
+              value={goalDraft.dueDate}
+              onChange={(event) => setGoalDraft((current) => ({ ...current, dueDate: event.target.value }))}
+            />
+            <select
+              value={goalDraft.category}
+              onChange={(event) => setGoalDraft((current) => ({ ...current, category: event.target.value }))}
+            >
+              <option>Career</option>
+              <option>Health</option>
+              <option>Lifestyle</option>
+              <option>Finance</option>
+              <option>Travel</option>
+            </select>
+            <button className="primary" onClick={addGoal} type="button">
+              Add Goal
+            </button>
+          </aside>
+
+          <div className="vb-panel vb-goal-list">
+            <h2>Growth Roadmap</h2>
+            <p>{completed} completed — keep your streak alive.</p>
+
+            <ul>
+              {goals.map((goal) => (
+                <li key={goal.id} className={goal.done ? "done" : ""}>
+                  <div className="goal-row">
+                    <button onClick={() => toggleGoal(goal.id)} type="button" className="check">
                       {goal.done ? "✓" : ""}
                     </button>
                     <div>
                       <h3>{goal.title}</h3>
                       <p>
-                        <span
-                          className="tag"
-                          style={{
-                            color: categoryColors[goal.category] || "#6366F1",
-                            borderColor: `${categoryColors[goal.category] || "#6366F1"}55`,
-                          }}
-                        >
-                          {goal.category}
-                        </span>
-                        <span className="meta">Due {formatDate(goal.dueDate)}</span>
-                        <span className={`meta priority ${goal.priority.toLowerCase()}`}>{goal.priority} priority</span>
+                        {goal.category} • {goal.dueDate ? formatDate(goal.dueDate) : "No date"}
                       </p>
                     </div>
                   </div>
 
-                  <div className="progress-row">
-                    <div className="meter">
-                      <div className="meter-fill" style={{ width: `${goal.progress}%` }} />
-                    </div>
-                    <span className="progress-value">{goal.progress}%</span>
+                  <div className="meter">
+                    <div style={{ width: `${goal.progress}%` }} />
                   </div>
-                </div>
 
-                <div className="goal-actions">
-                  <button type="button" onClick={() => updateProgress(goal.id, "down")}>
-                    -10%
-                  </button>
-                  <button type="button" onClick={() => updateProgress(goal.id, "up")}>
-                    +10%
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </article>
-
-        <aside className="right-column">
-          <article className="panel composer">
-            <div className="panel-head">
-              <h2>Add New Goal</h2>
-              <p>Create an intentional next step.</p>
-            </div>
-            <div className="form-grid">
-              <input
-                value={form.title}
-                onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-                placeholder="Goal title"
-              />
-              <select
-                value={form.category}
-                onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
-              >
-                {Object.keys(categoryColors).map((category) => (
-                  <option key={category}>{category}</option>
-                ))}
-              </select>
-              <input
-                type="date"
-                value={form.dueDate}
-                onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))}
-              />
-              <select
-                value={form.priority}
-                onChange={(event) => setForm((current) => ({ ...current, priority: event.target.value }))}
-              >
-                <option>High</option>
-                <option>Medium</option>
-                <option>Low</option>
-              </select>
-              <button type="button" className="primary" onClick={addGoal}>
-                Add to Matrix
-              </button>
-            </div>
-          </article>
-
-          <article className="panel insights">
-            <div className="panel-head">
-              <h2>Upcoming Milestones</h2>
-              <p>Stay ahead of deadlines.</p>
-            </div>
-            <ul>
-              {upcoming.length ? (
-                upcoming.map((goal) => (
-                  <li key={goal.id}>
-                    <strong>{goal.title}</strong>
-                    <span>{getDaysLeft(goal.dueDate)} days left</span>
-                  </li>
-                ))
-              ) : (
-                <li>
-                  <strong>Everything complete 🎉</strong>
-                  <span>You are fully caught up.</span>
+                  <div className="goal-actions">
+                    <button onClick={() => adjustGoal(goal.id, -10)} type="button">
+                      -10%
+                    </button>
+                    <button onClick={() => adjustGoal(goal.id, 10)} type="button">
+                      +10%
+                    </button>
+                  </div>
                 </li>
-              )}
+              ))}
             </ul>
-          </article>
-
-          <article className="panel journal">
-            <div className="panel-head">
-              <h2>Daily Intention</h2>
-              <p>Set your focus statement.</p>
-            </div>
-            <textarea
-              value={dailyIntent}
-              onChange={(event) => setDailyIntent(event.target.value)}
-              rows={3}
-            />
-            <p className="intent-preview">“{dailyIntent || "Write one clear intention."}”</p>
-          </article>
-        </aside>
-      </section>
+          </div>
+        </section>
+      )}
     </main>
   );
 }
